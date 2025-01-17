@@ -61,17 +61,14 @@ void get_tfdt(char* seg_filename, context_t* ctx) {
         exit(1);
     }
     else
-    {
-        //extract 'base media decode time'
-        printf("loc: %ld\n", loc);
-
+    {   //extract 'base media decode time'
         uint8_t   version_buf[4];
         uint8_t   tfdt_buf[8];
 
         loc += 4;
-        memcpy(&version_buf[0], &inbuf[loc], 4);
+        memcpy(version_buf, &inbuf[loc], 4);
         loc += 4;
-        memcpy(&tfdt_buf[0], &inbuf[loc], 8);
+        memcpy(tfdt_buf, &inbuf[loc], 8);
         
         ctx->version = ((uint32_t)(version_buf[3]) << 24) |
             ((uint32_t)(version_buf[2]) << 16) |
@@ -117,33 +114,74 @@ void get_timescale(char* mpd, context_t* ctx) {
     ctx->mpdsz = std::filesystem::file_size(mpd);
 }
 
-#if 0
-void write_styp(FILE* fp, uint32_t seg_size) {
+void int2buf32(uint32_t val, uint8_t* valbuf) {
+    valbuf[0] = (uint32_t)val >> 24;
+    valbuf[1] = (uint32_t)val >> 16;
+    valbuf[2] = (uint32_t)val >> 8;
+    valbuf[3] = (uint32_t)val;
 }
 
-void write_seg(char* fname, uint64_t tfdt,  uint32_t timescale, uint32_t mpd_size) {
+void write_styp(FILE* fp) {
+    uint32_t styp_sz;
+    uint32_t zero;
+    uint8_t  stypval[4];
+    uint8_t  stypbuf[4] = {'s', 't', 'y', 'p'};
+    uint8_t  mp41buf[4] = {'m', 'p', '4', '1'};
+
+    styp_sz = 12; //4*3
+    zero = 0;
+
+    int2buf32(styp_sz, stypval);
+
+    fwrite(stypval, 4, 1, fp);
+    fwrite(stypbuf, 1, 4, fp);
+    fwrite(mp41buf, 1, 4, fp);
+    fwrite(&zero, sizeof(uint32_t), 1, fp);
+    fwrite(mp41buf, 1, 4, fp);
+    fflush(fp);
+}
+
+void write_emsg(FILE* fp, context_t* ctx) {
+    if (fp == NULL)
+    {
+        printf("could not open file for writing\n");
+        exit(1);
+    }
+    if (ctx == NULL)
+    {
+        printf("context is NULL\n");
+        exit(1);
+    }
+}
+
+void write_seg(char* seg_filename, context_t* ctx) {
+
+    uint32_t pubtime_sz;
+    uint32_t siu_sz;
+    char*    scheme_id_uri = (char*)"urn:mpeg:dash:event:2012";
+
     FILE* fp;
-    fp = fopen(fname, "wb");
+    fp = fopen(seg_filename, "wb");
+    if (fp == NULL)
+    {
+        printf("could not open file %s for writing \n", seg_filename);
+        exit(1);
+    }
 
-    scheme_id_uri: "urn:mpeg:dash:event:2012\0"
+    pubtime_sz = strlen(ctx->pubtime);
+    printf("pubtime size: %u\n", pubtime_sz);
 
-    //compute total_seg_size
-    write_styp(fp, total_seg_size);
+    siu_sz = strlen(scheme_id_uri);
+    printf("scheme id sz: %u\n", siu_sz);
 
-    //write emsg
-
-    //concat to existing seg
-
-    //write <InbandEventStream /> to mpd in audio AdaptationSet
-
-    return;
+    write_styp(fp);
+    write_emsg(fp, ctx);
 }
-#endif
 
 int main(void) {
     context_t seg_ctx;
 
-    get_tfdt((char*)"/home/ab/work/vid/audio-0-128000-904577953.mp4a", &seg_ctx);
+    get_tfdt((char*)"/home/ab/work/vid/audio-0-128000-904577955.mp4a", &seg_ctx);
     printf("tfdt   : %lu\n", seg_ctx.tfdt);
     printf("version: %u\n", seg_ctx.version);
 
@@ -151,8 +189,11 @@ int main(void) {
     printf("timescale: %u\n", seg_ctx.timescale);
     printf("mpd size : %u\n", seg_ctx.mpdsz);
     printf("pub time : %s\n", seg_ctx.pubtime);
+    printf("\n");
 
-    //write_seg((char*)"new_seg.mp4a", tfdt, timescale, sz);
+    write_seg((char*)"new_seg.mp4a", &seg_ctx);
+
+    //write <InbandEventStream /> to mpd in audio AdaptationSet
 
     return 0;
 }
