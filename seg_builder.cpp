@@ -17,19 +17,32 @@ using namespace std;
 
 #define BUFSZ 256 
 
-void get_tfdt(char* seg_filename, uint64_t* tfdt_val) {
+typedef struct context_s {
+    uint64_t tfdt;
+    uint32_t timescale;
+    uint32_t mpdsz;
+    uint8_t  version;
+    char     pubtime[32];
+} context_t;
+
+void get_tfdt(char* seg_filename, context_t* ctx) {
     FILE*     fp;
     uint8_t   inbuf[BUFSZ];
     long      loc = -1;
     long      num;
 
     fp = fopen(seg_filename, "rb");
+    if (fp == NULL)
+    {
+        printf("could not open file %s\n", seg_filename);
+        exit(1);
+    }
 
     num = fread(inbuf, 1, BUFSZ, fp);
     if (num < BUFSZ)
     {
         printf("Read less than BUFSZ, num read: %ld\n", num);
-        return;
+        exit(1);
     }
 
     for (int i = 0; i < BUFSZ - 4; i++)
@@ -45,7 +58,7 @@ void get_tfdt(char* seg_filename, uint64_t* tfdt_val) {
     if (loc < 0)
     {
         printf("did not find tfdt, exiting\n");
-        return;
+        exit(1);
     }
     else
     {
@@ -54,76 +67,92 @@ void get_tfdt(char* seg_filename, uint64_t* tfdt_val) {
 
         uint8_t   version_buf[4];
         uint8_t   tfdt_buf[8];
-        uint32_t  version;
 
         loc += 4;
         memcpy(&version_buf[0], &inbuf[loc], 4);
-
         loc += 4;
         memcpy(&tfdt_buf[0], &inbuf[loc], 8);
         
-        //for (i = 0; i < 4; i++) printf("%d\n", (uint8_t)(version_buf[i]));
+        ctx->version = ((uint32_t)(version_buf[3]) << 24) |
+            ((uint32_t)(version_buf[2]) << 16) |
+            ((uint32_t)(version_buf[1]) <<  8) |
+            ((uint32_t)(version_buf[0])      );
 
-        version = ((uint32_t)(version_buf[3]) << 24) |
-                  ((uint32_t)(version_buf[2]) << 16) |
-                  ((uint32_t)(version_buf[1]) <<  8) |
-                  ((uint32_t)(version_buf[0])      );
-
-        //for (i = 0; i < 8; i++) printf("%x\n", (uint8_t)(tfdt_buf[i]));
-
-        *tfdt_val = ((uint64_t)(tfdt_buf[0]) << 56) |
-               ((uint64_t)(tfdt_buf[1]) << 48) |
-               ((uint64_t)(tfdt_buf[2]) << 40) |
-               ((uint64_t)(tfdt_buf[3]) << 32) |
-               ((uint64_t)(tfdt_buf[4]) << 24) |
-               ((uint64_t)(tfdt_buf[5]) << 16) |
-               ((uint64_t)(tfdt_buf[6]) <<  8) |
-               ((uint64_t)(tfdt_buf[7])      );
-
-        printf("version: %u\n", version);
+        ctx->tfdt = ((uint64_t)(tfdt_buf[0]) << 56) |
+            ((uint64_t)(tfdt_buf[1]) << 48) |
+            ((uint64_t)(tfdt_buf[2]) << 40) |
+            ((uint64_t)(tfdt_buf[3]) << 32) |
+            ((uint64_t)(tfdt_buf[4]) << 24) |
+            ((uint64_t)(tfdt_buf[5]) << 16) |
+            ((uint64_t)(tfdt_buf[6]) <<  8) |
+            ((uint64_t)(tfdt_buf[7])      );
     }
 }
 
-void get_timescale(char* mpd, uint32_t* timescale, uint32_t* file_size) {
-    *timescale = 0;
+void get_timescale(char* mpd, context_t* ctx) {
+    ctx->timescale = 0;
     
-    //get the 1) audio timescale and 2) size in bytes
+    //get the 1) publish time 2) audio timescale and 3) size in bytes
     pugi::xml_document doc;
     if (!doc.load_file(mpd))
     {
         printf("\nCould not open MPD\n");
-        return;
+        exit(1);
     }
 
-    pugi::xml_node period = doc.child("MPD").child("Period");
+    pugi::xml_node mpdxml = doc.child("MPD");
+    memcpy(ctx->pubtime, mpdxml.attribute("publishTime").value(), sizeof(ctx->pubtime));
 
+    pugi::xml_node period = mpdxml.child("Period");
     for (pugi::xml_node adaptset = period.first_child(); adaptset; adaptset = adaptset.next_sibling())
         if (strncmp(adaptset.attribute("contentType").value(), "audio", 5) == 0)
-            *timescale = strtoul(adaptset.child("SegmentTemplate").attribute("timescale").value(), NULL, 10);
-            //std::cout << "audio timescale: " << adaptset.child("SegmentTemplate").attribute("timescale").value() << std::endl;
+            ctx->timescale = strtoul(adaptset.child("SegmentTemplate").attribute("timescale").value(), NULL, 10);
 
-    if (*timescale == 0)
+    if (ctx->timescale == 0)
     {
         printf("\nCould not find audio timescale\n");
-        return;
+        exit(1);
     }
 
-    *file_size = std::filesystem::file_size(mpd);
+    ctx->mpdsz = std::filesystem::file_size(mpd);
 }
 
+#if 0
+void write_styp(FILE* fp, uint32_t seg_size) {
+}
+
+void write_seg(char* fname, uint64_t tfdt,  uint32_t timescale, uint32_t mpd_size) {
+    FILE* fp;
+    fp = fopen(fname, "wb");
+
+    scheme_id_uri: "urn:mpeg:dash:event:2012\0"
+
+    //compute total_seg_size
+    write_styp(fp, total_seg_size);
+
+    //write emsg
+
+    //concat to existing seg
+
+    //write <InbandEventStream /> to mpd in audio AdaptationSet
+
+    return;
+}
+#endif
+
 int main(void) {
-    uint64_t tfdt;
-    uint32_t timescale;
-    uint32_t sz;
+    context_t seg_ctx;
 
-    get_tfdt((char*)"/home/ab/zz_segs/audio-0-128000-904577953.mp4a", &tfdt);
-    printf("tfdt: %lu\n", tfdt);
+    get_tfdt((char*)"/home/ab/work/vid/audio-0-128000-904577953.mp4a", &seg_ctx);
+    printf("tfdt   : %lu\n", seg_ctx.tfdt);
+    printf("version: %u\n", seg_ctx.version);
 
-    get_timescale((char*)"manifest.mpd", &timescale, &sz);
-    printf("timescale: %u\n", timescale);
-    printf("size     : %u\n", sz);
+    get_timescale((char*)"manifest.mpd", &seg_ctx);
+    printf("timescale: %u\n", seg_ctx.timescale);
+    printf("mpd size : %u\n", seg_ctx.mpdsz);
+    printf("pub time : %s\n", seg_ctx.pubtime);
 
-   //write seg
+    //write_seg((char*)"new_seg.mp4a", tfdt, timescale, sz);
 
     return 0;
 }

@@ -29,8 +29,13 @@
 +--------+--------+--------+--------+
 |                id                 | #<--random number
 +--------+--------+--------+--------+
-|           scheme_id_uri           | #<--copied from DASH spec
-|  variable bytes ending w '\0'     |
+|   u         r        n       :    | #<--scheme_id_uri copied from DASH spec
+|   m         p        e       g    |
+|   :         d        a       s    |
+|   h         :        e       v    |
+|   e         n        t       :    |
+|   2         0        1       2    |
+|  \0                               | #<--FIXME: it is not 32 bit word aligned
 +--------+--------+--------+--------+
 |      value      | messsage_data   | #<--value = 0x3300
 +--------+--------+--------+--------+

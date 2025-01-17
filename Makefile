@@ -11,4 +11,4 @@ seg_builder: $(OBJS)
 	$(CC) $(CFLAGS) $(SRCS) -o $@
 
 clean:
-	rm -f *.o seg_builder
+	rm -f *.o seg_builder core
