@@ -30,7 +30,7 @@
 |                id                 | #<--random number
 +--------+--------+--------+--------+
 |           scheme_id_uri           | #<--copied from DASH spec
-|  variable bytes ending w '\0'     |                   |
+|  variable bytes ending w '\0'     |
 +--------+--------+--------+--------+
 |      value      | messsage_data   | #<--value = 0x3300
 +--------+--------+--------+--------+

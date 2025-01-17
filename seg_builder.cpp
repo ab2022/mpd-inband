@@ -1,10 +1,19 @@
 // Copyright (C) 2025 Comcast
-// to compile: gcc -g -Wall seg_builder.c -o seg_builder.c
 
 #include <stdio.h>
 #include <stdint.h>
-#define _GNU_SOURCE
+
+#include <iostream>
+#include <filesystem>
+
+#include "pugixml.hpp"
 #include <string.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+using namespace std;
 
 #define BUFSZ 256 
 
@@ -75,16 +84,52 @@ void get_tfdt(char* seg_filename, uint64_t* tfdt_val) {
     }
 }
 
+void get_timescale(char* mpd, uint32_t* timescale, uint32_t* file_size) {
+    *timescale = 0;
+    
+    //get the 1) audio timescale and 2) size in bytes
+    pugi::xml_document doc;
+    if (!doc.load_file(mpd))
+    {
+        printf("\nCould not open MPD\n");
+        return;
+    }
+
+    pugi::xml_node period = doc.child("MPD").child("Period");
+
+    for (pugi::xml_node adaptset = period.first_child(); adaptset; adaptset = adaptset.next_sibling())
+        if (strncmp(adaptset.attribute("contentType").value(), "audio", 5) == 0)
+            *timescale = strtoul(adaptset.child("SegmentTemplate").attribute("timescale").value(), NULL, 10);
+            //std::cout << "audio timescale: " << adaptset.child("SegmentTemplate").attribute("timescale").value() << std::endl;
+
+    if (*timescale == 0)
+    {
+        printf("\nCould not find audio timescale\n");
+        return;
+    }
+
+    *file_size = std::filesystem::file_size(mpd);
+}
+
 int main(void) {
     uint64_t tfdt;
+    uint32_t timescale;
+    uint32_t sz;
 
-    get_tfdt("audio-0-128000-904577953.mp4a", &tfdt);
+    get_tfdt((char*)"/home/ab/zz_segs/audio-0-128000-904577953.mp4a", &tfdt);
     printf("tfdt: %lu\n", tfdt);
 
-    //open MPD and get the needed items
-    
-    //write seg
+    get_timescale((char*)"manifest.mpd", &timescale, &sz);
+    printf("timescale: %u\n", timescale);
+    printf("size     : %u\n", sz);
+
+   //write seg
 
     return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
+
 
