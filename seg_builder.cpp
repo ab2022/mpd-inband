@@ -121,44 +121,82 @@ void int2buf32(uint32_t val, uint8_t* valbuf) {
     valbuf[3] = (uint32_t)val;
 }
 
+void int2buf64(uint64_t val, uint8_t* valbuf) {
+    valbuf[0] = (uint64_t)val >> 56;
+    valbuf[1] = (uint64_t)val >> 48;
+    valbuf[2] = (uint64_t)val >> 40;
+    valbuf[3] = (uint64_t)val >> 32;
+    valbuf[4] = (uint64_t)val >> 24;
+    valbuf[5] = (uint64_t)val >> 16;
+    valbuf[6] = (uint64_t)val >> 8;
+    valbuf[7] = (uint64_t)val;
+}
+
 void write_styp(FILE* fp) {
     uint32_t styp_sz;
-    uint32_t zero;
-    uint8_t  stypval[4];
-    uint8_t  stypbuf[4] = {'s', 't', 'y', 'p'};
-    uint8_t  mp41buf[4] = {'m', 'p', '4', '1'};
+    uint8_t  styp_sz_buf[4];
+    uint32_t zero = 0x00;
+    uint8_t  styp[4] = {'s', 't', 'y', 'p'};
+    uint8_t  mp41[4] = {'m', 'p', '4', '1'};
 
     styp_sz = 12; //4*3
-    zero = 0;
+    int2buf32(styp_sz, styp_sz_buf);
 
-    int2buf32(styp_sz, stypval);
-
-    fwrite(stypval, 4, 1, fp);
-    fwrite(stypbuf, 1, 4, fp);
-    fwrite(mp41buf, 1, 4, fp);
-    fwrite(&zero, sizeof(uint32_t), 1, fp);
-    fwrite(mp41buf, 1, 4, fp);
+    fwrite(styp_sz_buf, 4, 1, fp);
+    fwrite(styp, 1, 4, fp);
+    fwrite(mp41, 1, 4, fp);
+    fwrite(&zero, 4, 1, fp);
+    fwrite(mp41, 1, 4, fp);
     fflush(fp);
 }
 
 void write_emsg(FILE* fp, context_t* ctx) {
-    if (fp == NULL)
-    {
-        printf("could not open file for writing\n");
-        exit(1);
-    }
+    uint32_t emsg_sz;
+    uint8_t  emsg_sz_buf[4];
+    uint8_t  emsg[4] = {'e', 'm', 's', 'g'};
+    uint32_t pubtime_sz;
+    uint32_t siu_sz;
+    uint8_t  version = 0x01;
+    uint8_t  flags[3] = {0x00};
+    uint8_t  timescale_buf[4];
+    uint8_t  tfdt_buf[8];
+    uint8_t  event_dur[4] = {0xFF, 0xFF, 0xFF, 0xFF};
+
+    char*    scheme_id_uri = (char*)"urn:mpeg:dash:event:2012";
+
     if (ctx == NULL)
     {
         printf("context is NULL\n");
         exit(1);
     }
+
+    pubtime_sz = strlen(ctx->pubtime);
+    siu_sz = strlen(scheme_id_uri);
+    emsg_sz = 24 + //len of constant fields
+              siu_sz +
+              pubtime_sz +
+              2 + //len of 'value' field
+              ctx->mpdsz;
+
+    printf("emsg sz: %u\n", emsg_sz);
+    int2buf32(emsg_sz, emsg_sz_buf);
+
+    fwrite(emsg_sz_buf, 4, 1, fp);
+    fwrite(emsg, 1, 4, fp);
+    fwrite(&version, 1, 1, fp);
+    fwrite(flags, sizeof(flags), 1, fp);
+
+    int2buf32(ctx->timescale, timescale_buf);
+    fwrite(timescale_buf, 4, 1, fp);
+
+    int2buf64(ctx->tfdt, tfdt_buf);
+    fwrite(tfdt_buf, 8, 1, fp);
+
+    fwrite(event_dur, sizeof(event_dur), 1, fp);
+    fflush(fp);
 }
 
 void write_seg(char* seg_filename, context_t* ctx) {
-
-    uint32_t pubtime_sz;
-    uint32_t siu_sz;
-    char*    scheme_id_uri = (char*)"urn:mpeg:dash:event:2012";
 
     FILE* fp;
     fp = fopen(seg_filename, "wb");
@@ -168,20 +206,15 @@ void write_seg(char* seg_filename, context_t* ctx) {
         exit(1);
     }
 
-    pubtime_sz = strlen(ctx->pubtime);
-    printf("pubtime size: %u\n", pubtime_sz);
-
-    siu_sz = strlen(scheme_id_uri);
-    printf("scheme id sz: %u\n", siu_sz);
-
     write_styp(fp);
     write_emsg(fp, ctx);
+    fclose(fp);
 }
 
 int main(void) {
     context_t seg_ctx;
 
-    get_tfdt((char*)"/home/ab/work/vid/audio-0-128000-904577955.mp4a", &seg_ctx);
+    get_tfdt((char*)"/home/ab/work/vid/audio-0-128000-904577953.mp4a", &seg_ctx);
     printf("tfdt   : %lu\n", seg_ctx.tfdt);
     printf("version: %u\n", seg_ctx.version);
 
