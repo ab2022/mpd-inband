@@ -133,20 +133,23 @@ void int2buf64(uint64_t val, uint8_t* valbuf) {
 }
 
 void write_styp(FILE* fp) {
-    uint32_t styp_sz;
     uint8_t  styp_sz_buf[4];
     uint32_t zero = 0x00;
     uint8_t  styp[4] = {'s', 't', 'y', 'p'};
     uint8_t  mp41[4] = {'m', 'p', '4', '1'};
 
-    styp_sz = 12; //4*3
+    uint8_t  seg_buf[20];
+    uint32_t styp_sz = 12; //4*3
+
     int2buf32(styp_sz, styp_sz_buf);
 
-    fwrite(styp_sz_buf, 4, 1, fp);
-    fwrite(styp, 1, 4, fp);
-    fwrite(mp41, 1, 4, fp);
-    fwrite(&zero, 4, 1, fp);
-    fwrite(mp41, 1, 4, fp);
+    memcpy(seg_buf, styp_sz_buf, 4);
+    memcpy(&seg_buf[4], styp, 4);
+    memcpy(&seg_buf[8], mp41, 4);
+    memcpy(&seg_buf[12], &zero, 4);
+    memcpy(&seg_buf[16], mp41, 4);
+
+    fwrite(seg_buf, 1, 20, fp);
     fflush(fp);
 }
 
@@ -174,26 +177,36 @@ void write_emsg(FILE* fp, context_t* ctx) {
     siu_sz = strlen(scheme_id_uri);
     emsg_sz = 24 + //len of constant fields
               siu_sz +
-              pubtime_sz +
               2 + //len of 'value' field
+              pubtime_sz +
               ctx->mpdsz;
+    //printf("emsg sz: %u\n", emsg_sz);
 
-    printf("emsg sz: %u\n", emsg_sz);
+    uint8_t* seg_buf = (uint8_t*)calloc(emsg_sz + 8, 1);
+    if (seg_buf == NULL)
+    {
+        printf("write_emsg, calloc returned NULL\n");
+        exit(1);
+    }
+
     int2buf32(emsg_sz, emsg_sz_buf);
-
-    fwrite(emsg_sz_buf, 4, 1, fp);
-    fwrite(emsg, 1, 4, fp);
-    fwrite(&version, 1, 1, fp);
-    fwrite(flags, sizeof(flags), 1, fp);
+    memcpy(seg_buf, emsg_sz_buf, 4);
+    memcpy(&seg_buf[4], emsg, 4);
+    memcpy(&seg_buf[8], &version, 1);
+    memcpy(&seg_buf[9], flags, 3);
 
     int2buf32(ctx->timescale, timescale_buf);
-    fwrite(timescale_buf, 4, 1, fp);
+    memcpy(&seg_buf[12], timescale_buf, 4);
 
     int2buf64(ctx->tfdt, tfdt_buf);
-    fwrite(tfdt_buf, 8, 1, fp);
+    memcpy(&seg_buf[16], tfdt_buf, 8);
+    memcpy(&seg_buf[24], event_dur, 4);
 
-    fwrite(event_dur, sizeof(event_dur), 1, fp);
+    //write to file
+    fwrite(seg_buf, emsg_sz + 8, 1, fp);
     fflush(fp);
+    free(seg_buf);
+    seg_buf = NULL;
 }
 
 void write_seg(char* seg_filename, context_t* ctx) {
