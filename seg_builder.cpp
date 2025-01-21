@@ -15,7 +15,7 @@ extern "C" {
 
 using namespace std;
 
-#define BUFSZ 256 
+#define SCANBUF 256
 
 typedef struct context_s {
     uint64_t tfdt;
@@ -25,33 +25,47 @@ typedef struct context_s {
     char     pubtime[32];
     char*    mpd_name;
     char*    audio_seg_name;
+    uint8_t* audio_seg_contents;
+    int      audio_seg_sz;
 } context_t;
 
 void get_tfdt(char* seg_filename, context_t* ctx) {
     FILE*     fp;
-    uint8_t   inbuf[BUFSZ];
     long      loc = -1;
     long      num;
 
     ctx->audio_seg_name = seg_filename;
+    ctx->audio_seg_contents = NULL;
+
     fp = fopen(seg_filename, "rb");
     if (fp == NULL)
     {
-        printf("could not open file %s\n", seg_filename);
+        printf("could not open audio seg file %s\n", seg_filename);
         exit(1);
     }
 
-    num = fread(inbuf, 1, BUFSZ, fp);
-    if (num < BUFSZ)
+    fseek(fp, 0L, SEEK_END);
+    ctx->audio_seg_sz = ftell(fp);
+    fseek(fp,0L,SEEK_SET);
+
+    ctx->audio_seg_contents = (uint8_t*)calloc(ctx->audio_seg_sz, 1);
+    if (ctx->audio_seg_contents == NULL)
     {
-        printf("Read less than BUFSZ, num read: %ld\n", num);
+        printf("get_tfdt, calloc returned NULL\n");
         exit(1);
     }
 
-    for (int i = 0; i < BUFSZ - 4; i++)
+    num = fread(ctx->audio_seg_contents, 1, ctx->audio_seg_sz, fp);
+    if (num < ctx->audio_seg_sz)
     {
-        if (inbuf[i] == 't')
-            if (memcmp("fdt", &inbuf[i+1], 3) == 0)
+        printf("Read less than size of file, num read: %ld\n", num);
+        exit(1);
+    }
+
+    for (int i = 0; i < SCANBUF; i++)
+    {
+        if (ctx->audio_seg_contents[i] == 't')
+            if (memcmp("fdt", &(ctx->audio_seg_contents[i+1]), 3) == 0)
             {
                 loc = i;
                 break;
@@ -69,9 +83,9 @@ void get_tfdt(char* seg_filename, context_t* ctx) {
         uint8_t   tfdt_buf[8];
 
         loc += 4;
-        memcpy(version_buf, &inbuf[loc], 4);
+        memcpy(version_buf, &ctx->audio_seg_contents[loc], 4);
         loc += 4;
-        memcpy(tfdt_buf, &inbuf[loc], 8);
+        memcpy(tfdt_buf, &ctx->audio_seg_contents[loc], 8);
         
         ctx->version = ((uint32_t)(version_buf[3]) << 24) |
             ((uint32_t)(version_buf[2]) << 16) |
@@ -93,7 +107,7 @@ void get_timescale(char* mpd, context_t* ctx) {
     ctx->timescale = 0;
     ctx->mpd_name = mpd;
     
-    //get the 1) publish time 2) audio timescale and 3) size in bytes
+    //get the 1) publish time 2) audio timescale and 3) mpd size in bytes
     pugi::xml_document doc;
     if (!doc.load_file(mpd))
     {
@@ -186,7 +200,7 @@ void write_emsg(FILE* fp, context_t* ctx) {
               2 +          //len of 'value' field
               pubtime_sz + 1 +
               ctx->mpdsz;
-    //printf("emsg sz: %u\n", emsg_sz);
+    printf(" emsg sz : %u\n\n", emsg_sz);
 
     uint8_t* seg_buf = (uint8_t*)calloc(emsg_sz + 8, 1);
     if (seg_buf == NULL)
@@ -225,19 +239,18 @@ void write_emsg(FILE* fp, context_t* ctx) {
 }
 
 void concat_audio_seg(FILE* fp, context_t* ctx) {
-    if (ctx->audio_seg_name == NULL)
+    if (ctx->audio_seg_contents == NULL)
     {
-        printf("could not audio seg\n");
+        printf("could not get audio seg contents\n");
         exit(1);
     }
 
-    printf("audio seg name =%s\n", ctx->audio_seg_name);
+    printf("audio seg name = %s ... size = %d\n", ctx->audio_seg_name, ctx->audio_seg_sz);
 
-    if (fp == NULL)
-    {
-        printf("concat_audio_seg, fp is NULL\n");
-        exit(1);
-    }
+    fwrite(ctx->audio_seg_contents, ctx->audio_seg_sz, 1, fp);
+    fflush(fp);
+    free(ctx->audio_seg_contents);
+    ctx->audio_seg_contents = NULL;
 }
 
 void write_seg(char* seg_filename, context_t* ctx) {
@@ -252,7 +265,7 @@ void write_seg(char* seg_filename, context_t* ctx) {
 
     write_styp(fp);
     write_emsg(fp, ctx);
-    //concat_audio_seg(fp, ctx);
+    concat_audio_seg(fp, ctx);
     fclose(fp);
 }
 
@@ -267,7 +280,6 @@ int main(void) {
     printf("timescale: %u\n", seg_ctx.timescale);
     printf("mpd size : %u\n", seg_ctx.mpdsz);
     printf("pub time : %s\n", seg_ctx.pubtime);
-    printf("\n");
 
     write_seg((char*)"new_seg.mp4a", &seg_ctx);
 
