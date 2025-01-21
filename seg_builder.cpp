@@ -23,6 +23,8 @@ typedef struct context_s {
     uint32_t mpdsz;
     uint8_t  version;
     char     pubtime[32];
+    char*    mpd_name;
+    char*    audio_seg_name;
 } context_t;
 
 void get_tfdt(char* seg_filename, context_t* ctx) {
@@ -31,6 +33,7 @@ void get_tfdt(char* seg_filename, context_t* ctx) {
     long      loc = -1;
     long      num;
 
+    ctx->audio_seg_name = seg_filename;
     fp = fopen(seg_filename, "rb");
     if (fp == NULL)
     {
@@ -88,6 +91,7 @@ void get_tfdt(char* seg_filename, context_t* ctx) {
 
 void get_timescale(char* mpd, context_t* ctx) {
     ctx->timescale = 0;
+    ctx->mpd_name = mpd;
     
     //get the 1) publish time 2) audio timescale and 3) size in bytes
     pugi::xml_document doc;
@@ -164,6 +168,8 @@ void write_emsg(FILE* fp, context_t* ctx) {
     uint8_t  timescale_buf[4];
     uint8_t  tfdt_buf[8];
     uint8_t  event_dur[4] = {0xFF, 0xFF, 0xFF, 0xFF};
+    uint32_t id = 0xDEADBEEF;
+    uint16_t value = 0x3300;
 
     char*    scheme_id_uri = (char*)"urn:mpeg:dash:event:2012";
 
@@ -175,10 +181,10 @@ void write_emsg(FILE* fp, context_t* ctx) {
 
     pubtime_sz = strlen(ctx->pubtime);
     siu_sz = strlen(scheme_id_uri);
-    emsg_sz = 24 + //len of constant fields
-              siu_sz +
-              2 + //len of 'value' field
-              pubtime_sz +
+    emsg_sz = 24 +         //len of constant fields
+              siu_sz + 1 + //+1 for the '\0'
+              2 +          //len of 'value' field
+              pubtime_sz + 1 +
               ctx->mpdsz;
     //printf("emsg sz: %u\n", emsg_sz);
 
@@ -201,12 +207,37 @@ void write_emsg(FILE* fp, context_t* ctx) {
     int2buf64(ctx->tfdt, tfdt_buf);
     memcpy(&seg_buf[16], tfdt_buf, 8);
     memcpy(&seg_buf[24], event_dur, 4);
+    memcpy(&seg_buf[28], &id, 4);
+    memcpy(&seg_buf[32], scheme_id_uri, 25); //25 = strlen(scheme_id_uri)+1
+    memcpy(&seg_buf[57], &value, 2);
+    memcpy(&seg_buf[59], ctx->pubtime, pubtime_sz+1);
+
+    //read in the mpd to seg_buf[59+pubtime_sz+1]
+    FILE *fmpd = fopen(ctx->mpd_name, "rb");
+    fread(&seg_buf[59+pubtime_sz+1], ctx->mpdsz, 1, fmpd);
+    fclose(fmpd);
 
     //write to file
     fwrite(seg_buf, emsg_sz + 8, 1, fp);
     fflush(fp);
     free(seg_buf);
     seg_buf = NULL;
+}
+
+void concat_audio_seg(FILE* fp, context_t* ctx) {
+    if (ctx->audio_seg_name == NULL)
+    {
+        printf("could not audio seg\n");
+        exit(1);
+    }
+
+    printf("audio seg name =%s\n", ctx->audio_seg_name);
+
+    if (fp == NULL)
+    {
+        printf("concat_audio_seg, fp is NULL\n");
+        exit(1);
+    }
 }
 
 void write_seg(char* seg_filename, context_t* ctx) {
@@ -221,6 +252,7 @@ void write_seg(char* seg_filename, context_t* ctx) {
 
     write_styp(fp);
     write_emsg(fp, ctx);
+    //concat_audio_seg(fp, ctx);
     fclose(fp);
 }
 
