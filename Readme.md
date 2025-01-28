@@ -1,7 +1,7 @@
 
 # segbuilder
 
-## Standalone test tool for concatening MPDs and audio segments.
+## Standalone test tool for concatenating MPDs and audio segments.
 
 Depends on pugixml which is not included. Use `make` to compile.
 
