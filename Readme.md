@@ -1,4 +1,13 @@
 
+# segbuilder
+
+## Standalone test tool for concatening MPDs and audio segments.
+
+Depends on pugixml which is not included. Use `make` to compile.
+
+Creates audio segments in the following format:
+
+```
 
 0       7 8     15 16    23 24     31 
 +--------+--------+--------+--------+
@@ -48,6 +57,8 @@
 +--------+--------+--------+--------+
 |                ...                | #<--rest of the audio segment
 +--------+--------+--------+--------+
+
+```
 
 
 

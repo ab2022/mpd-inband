@@ -276,7 +276,7 @@ int main(void) {
     printf("tfdt   : %lu\n", seg_ctx.tfdt);
     printf("version: %u\n", seg_ctx.version);
 
-    get_timescale((char*)"manifest.mpd", &seg_ctx);
+    get_timescale((char*)"sample_manifest.mpd", &seg_ctx);
     printf("timescale: %u\n", seg_ctx.timescale);
     printf("mpd size : %u\n", seg_ctx.mpdsz);
     printf("pub time : %s\n", seg_ctx.pubtime);
