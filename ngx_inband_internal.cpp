@@ -18,29 +18,36 @@ extern "C" {
 
 
 void process_audio(ngx_http_request_t* r) {
-    if (r == NULL)
-    {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "INBAND process audio mpd r is NULL");
-        exit(1);
-    }
+    /* get the temp file name and size */
+    const char* incoming = (const char*)r->request_body->temp_file->file.name.data;
+	size_t sz = r->request_body->temp_file->file.offset;
 
-#if 0
+    /* create the out_buf, and write 'styp' to the first 4 bytes of out_buf */
     uint8_t styp[4] = {'s', 't', 'y', 'p'};
     size_t  num;
     uint8_t* out_buf = (uint8_t*)calloc(sz + 4, 1);
     memcpy(out_buf, styp, 4);
 
+    /* read in the temp file to out_buf starting at fifth byte */
     FILE *read_fp = fopen(incoming, "rb");
-    num = fread(&out_buf[4], sz, 1, read_fp);
+    num = fread(&out_buf[4], 1, sz, read_fp);
     if (num < sz)
     {
-        write(logfd, "num<sz\0", 7);
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "INBAND process_audio num < sz");
         exit(1);
     }
     fclose(read_fp);
-    free(out_buf);
-#endif
 
+    /* write it out */
+    FILE *write_fp = fopen(incoming, "wb");
+    num = fwrite(out_buf, 1, sz + 4, write_fp);
+    if (num < sz + 4)
+    {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "INBAND process_audio write_fp not enough");
+        exit(1);
+    }
+    fclose(write_fp);
+    free(out_buf);
 }
 
 void process_mpd(ngx_http_request_t* r) {
