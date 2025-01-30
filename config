@@ -1,0 +1,15 @@
+ngx_addon_name=ngx_http_inband_module
+INBAND_SRCS="                                                 \
+              $ngx_addon_dir/ngx_http_inband_module.cpp     \
+              $ngx_addon_dir/ngx_inband_internal.cpp        \
+              "
+
+if test -n "$ngx_module_link"; then
+  ngx_module_type=HTTP
+  ngx_module_name=ngx_http_inband_module
+  ngx_module_srcs="$INBAND_SRCS"
+  . auto/module
+else
+  HTTP_MODULES="$HTTP_MODULES ngx_http_inband_module"
+  NGX_ADDON_SRCS="$NGX_ADDON_SRCS $INBAND_SRCS"
+fi

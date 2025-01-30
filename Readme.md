@@ -1,64 +1,18 @@
 
-# segbuilder
+## MPD Inband
 
-## Standalone test tool for concatenating MPDs and audio segments.
+MPD Inband is an NGINX module that concatenates MPDs and audio segments.
 
-Depends on pugixml which is not included. Use `make` to compile.
+The goal of MPD Inband is to include MPDs in audio segments and thereby reduce HTTP request overhead. Once built and installed, MPD Inband processes every file ending in "mpd" or ".mp4a" that is uploaded to NGINX using HTTP POST or PUT.
 
-Creates audio segments in the following format:
+### Building
 
-```
+MPD Inband compiles with g++ 13.3.0 on Ubuntu 24.04 with NGINX 1.24.0. No other compilers or versions have been tried. Pugixml is a dependency and is used for xml processing. The pugixml files are not included.
 
-0       7 8     15 16    23 24     31 
-+--------+--------+--------+--------+
-|            stype size             |
-+--------+--------+--------+--------+
-|   s        t         y       p    | #<--styp has same defintion as ftyp
-+--------+--------+--------+--------+
-|            major brand            | #<--mp41
-+--------+--------+--------+--------+
-|           minor version           | #<--0
-+--------+--------+--------+--------+
-|         compatible brands         | #<--mp41
-+--------+--------+--------+--------+
-|         compatible brands         | #<--lseg
-+--------+--------+--------+--------+
-|             emsg size             |
-+--------+--------+--------+--------+
-|   e        m         s       g    |
-+--------+--------+--------+--------+
-|   ver  |           flags          | #<--ver = 1, flags = 0x00
-+--------+--------+--------+--------+
-|            timescale              | #<--from SegmentTemplate in audio AdaptSet
-+--------+--------+--------+--------+
-|         presentation_time         | #<--8 bytes, copy tfdt from segment
-|                                   |
-+--------+--------+--------+--------+
-|          event_duration           | #<--0xFFFFFFFF
-+--------+--------+--------+--------+
-|                id                 | #<--random number
-+--------+--------+--------+--------+
-|   u         r        n       :    | #<--scheme_id_uri copied from DASH spec
-|   m         p        e       g    |
-|   :         d        a       s    |
-|   h         :        e       v    |
-|   e         n        t       :    |
-|   2         0        1       2    |
-|  \0                               | #<--FIXME: it is not 32 bit word aligned
-+--------+--------+--------+--------+
-|      value      | messsage_data   | #<--value = 0x3300
-+--------+--------+--------+--------+
-|         message_data con't        | #<--bytes of xml equal to
-|                ...                | #<--emsg size - other fields
-+--------+--------+--------+--------+
-|             moof size             | 
-+--------+--------+--------+--------+
-|   m        o         o       f    |
-+--------+--------+--------+--------+
-|                ...                | #<--rest of the audio segment
-+--------+--------+--------+--------+
+The build process is the same as compiling [morpheus](https://www.github.com/ab2022/morpheus)
 
-```
+### Seg_builder
 
+Seg_builder is a standalone tool that can be run to test and verify the concatenation processing.
 
 
