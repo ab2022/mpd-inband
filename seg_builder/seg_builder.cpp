@@ -269,6 +269,34 @@ void write_seg(char* seg_filename, context_t* ctx) {
     fclose(fp);
 }
 
+void write_ies(char* incoming) {
+
+    pugi::xml_document doc;
+    doc.load_file((const char*)incoming);
+
+    pugi::xpath_query query_scan_type("/MPD/Period/AdaptationSet");
+    pugi::xpath_node_set scan_items = query_scan_type.evaluate_node_set(doc);
+    for (pugi::xpath_node_set::const_iterator it = scan_items.begin(); it != scan_items.end(); ++it)
+    {
+        pugi::xpath_node node = *it;
+        std::string val = node.node().attribute("contentType").value();
+        if (val == "audio")
+        {
+            pugi::xml_node ies = node.node().append_child("InbandEventStream");
+
+            pugi::xml_attribute siu = ies.append_attribute("schemeIdUri");
+            siu.set_value("urn:mpeg:dash:event:2012");
+
+            pugi::xml_attribute val = ies.append_attribute("value");
+            val.set_value("3");
+            break;
+        }
+    }
+
+    //save mpd as cur.mpd
+    doc.save_file((const char*)"cur.mpd");
+}
+
 int main(void) {
     context_t seg_ctx;
 
@@ -284,6 +312,7 @@ int main(void) {
     write_seg((char*)"new_seg.mp4a", &seg_ctx);
 
     //write <InbandEventStream /> to mpd in audio AdaptationSet
+    write_ies((char*)"sample_manifest.mpd");
 
     return 0;
 }
