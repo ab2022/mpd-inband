@@ -2,10 +2,6 @@
 * Copyright (C) ab 1/29/25
 */
 
-#include <iostream>
-#include <sstream>
-#include <string>
-
 #include "pugixml.hpp"
 
 #ifdef __cplusplus
@@ -19,37 +15,84 @@ extern "C" {
 #define CURMPD (const char*)"/dev/shm/cur.mpd"
 
 
+typedef struct context_s {
+    uint64_t tfdt;
+    uint32_t timescale;
+    size_t   mpdsz;
+    uint8_t  version;
+    char           pubtime[32];
+    const char*    mpd_name;
+    const char*    audio_seg_name;
+    uint8_t*       audio_seg_contents;
+    size_t         audio_seg_sz;
+} context_t;
+
+
+void get_timescale(ngx_http_request_t* r, context_t* ctx) {
+    char*  pt = NULL;
+    size_t pt_sz;
+    ctx->timescale = 0;
+
+    //get the 1) publish time 2) audio timescale
+    pugi::xml_document doc;
+    if (!doc.load_file(CURMPD))
+    {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                      "_INBAND_ could not open mpd file \"%s\" for reading\n", CURMPD);
+        return;
+    }
+
+    pugi::xml_node mpdxml = doc.child("MPD");
+    pt = (char*)mpdxml.attribute("publishTime").value();
+    pt_sz = strlen(pt);
+    if (pt_sz == 0)
+    {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                      "_INBAND_ publishTime string not found\n");
+        return;
+    }
+
+    memcpy(ctx->pubtime, pt, pt_sz);
+
+    pugi::xml_node period = mpdxml.child("Period");
+    for (pugi::xml_node adaptset = period.first_child(); adaptset; adaptset = adaptset.next_sibling())
+        if (strncmp(adaptset.attribute("contentType").value(), "audio", 5) == 0)
+        {
+            ctx->timescale = strtoul(adaptset.child("SegmentTemplate").attribute("timescale").value(), NULL, 10);
+            break;
+        }
+
+    if (ctx->timescale == 0)
+    {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                      "_INBAND_ could not find audio timescale\n");
+        return;
+    }
+}
+
+
 void process_audio(ngx_http_request_t* r) {
+    context_t ctx;
+
+    /* get the audio seg temp file name and size */
+    ctx.audio_seg_name = (const char*)r->request_body->temp_file->file.name.data;
+	ctx.audio_seg_sz = r->request_body->temp_file->file.offset;
+
+    get_timescale(r, &ctx);
+
+#if 0
+    /*
     FILE* mpd_fp;
     mpd_fp = fopen(CURMPD, "rb");
     if (mpd_fp == NULL)
     {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "could not open mpd file \"%s\" for reading", CURMPD);
+                      "_INBAND_ could not open mpd file \"%s\" for reading\n", CURMPD);
         return;
     }
     fclose(mpd_fp);
-
-    /*
-    get_tfdt((char*)"/home/ab/work/vid/audio-0-128000-904577953.mp4a", &seg_ctx);
-    get_timescale((char*)"sample_manifest.mpd", &seg_ctx);
-    FILE* fp;
-    fp = fopen(seg_filename, "wb");
-    if (fp == NULL)
-    {
-        printf("could not open file %s for writing \n", seg_filename);
-        exit(1);
-    }
-
-    write_styp(fp);
-    write_emsg(fp, ctx);
-    concat_audio_seg(fp, ctx);
-    fclose(fp);
     */
 
-    /* get the temp file name and size */
-    const char* incoming = (const char*)r->request_body->temp_file->file.name.data;
-	size_t sz = r->request_body->temp_file->file.offset;
 
     /* create the out_buf, and write 'styp' to the first 4 bytes of out_buf */
     uint8_t styp[4] = {'s', 't', 'y', 'p'};
@@ -77,18 +120,19 @@ void process_audio(ngx_http_request_t* r) {
     }
     fclose(write_fp);
     free(out_buf);
+#endif
 }
 
 void process_mpd(ngx_http_request_t* r) {
-    if (r == NULL)
-    {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "_INBAND_ process_mpd r is NULL");
-        exit(1);
-    }
 
     const char* incoming = (const char*)r->request_body->temp_file->file.name.data;
     pugi::xml_document doc;
-    doc.load_file((const char*)incoming);
+    if (!doc.load_file(incoming))
+    {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                      "_INBAND_ could not open incoming mpd file \"%s\"\n", incoming);
+        return;
+    }
 
     pugi::xpath_query query_scan_type("/MPD/Period/AdaptationSet");
     pugi::xpath_node_set scan_items = query_scan_type.evaluate_node_set(doc);
