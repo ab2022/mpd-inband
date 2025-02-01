@@ -62,6 +62,8 @@ void get_tfdt(char* seg_filename, context_t* ctx) {
         exit(1);
     }
 
+    fclose(fp);
+
     for (int i = 0; i < SCANBUF; i++)
     {
         if (ctx->audio_seg_contents[i] == 't')
@@ -86,7 +88,7 @@ void get_tfdt(char* seg_filename, context_t* ctx) {
         memcpy(version_buf, &ctx->audio_seg_contents[loc], 4);
         loc += 4;
         memcpy(tfdt_buf, &ctx->audio_seg_contents[loc], 8);
-        
+
         ctx->version = ((uint32_t)(version_buf[3]) << 24) |
             ((uint32_t)(version_buf[2]) << 16) |
             ((uint32_t)(version_buf[1]) <<  8) |

@@ -13,18 +13,19 @@ extern "C" {
 #include <ngx_http.h>
 
 #define CURMPD (const char*)"/dev/shm/cur.mpd"
+#define SCANBUF 256
 
 
 typedef struct context_s {
-    uint64_t tfdt;
-    uint32_t timescale;
-    size_t   mpdsz;
-    uint8_t  version;
-    char           pubtime[32];
-    const char*    mpd_name;
-    const char*    audio_seg_name;
-    uint8_t*       audio_seg_contents;
-    size_t         audio_seg_sz;
+    uint64_t  tfdt;
+    uint32_t  timescale;
+    size_t    mpdsz;
+    uint8_t   version;
+    char      pubtime[32];
+    const char*  mpd_name;
+    const char*  audio_seg_name;
+    uint8_t*     audio_seg_contents;
+    size_t       audio_seg_sz;
 } context_t;
 
 
@@ -53,6 +54,7 @@ void get_timescale(ngx_http_request_t* r, context_t* ctx) {
     }
 
     memcpy(ctx->pubtime, pt, pt_sz);
+    ctx->pubtime[pt_sz] = '\0';
 
     pugi::xml_node period = mpdxml.child("Period");
     for (pugi::xml_node adaptset = period.first_child(); adaptset; adaptset = adaptset.next_sibling())
@@ -70,6 +72,79 @@ void get_timescale(ngx_http_request_t* r, context_t* ctx) {
     }
 }
 
+void get_tfdt(ngx_http_request_t* r, context_t* ctx) {
+    FILE*     fp;
+    long      loc = -1;
+    size_t    num;
+
+    fp = fopen(ctx->audio_seg_name, "rb");
+    if (fp == NULL)
+    {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                      "_INBAND_ could not open audio seg file \"%s\"\n");
+        return;
+    }
+
+    ctx->audio_seg_contents = (uint8_t*)calloc(ctx->audio_seg_sz, 1);
+    if (ctx->audio_seg_contents == NULL)
+    {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                      "_INBAND_ get_tfdt, calloc returned NULL\n");
+        return;
+    }
+
+    num = fread(ctx->audio_seg_contents, 1, ctx->audio_seg_sz, fp);
+    if (num < ctx->audio_seg_sz)
+    {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                      "_INBAND_ num less than file sz num: %d sz: %d\n",
+                      num, ctx->audio_seg_sz);
+        return;
+    }
+
+    fclose(fp);
+
+    for (int i = 0; i < SCANBUF; i++)
+    {
+        if (ctx->audio_seg_contents[i] == 't')
+            if (memcmp("fdt", &(ctx->audio_seg_contents[i+1]), 3) == 0)
+            {
+                loc = i;
+                break;
+            }
+    }
+
+    if (loc < 0)
+    {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                      "_INBAND_ did not find tfdf, exiting\n");
+        exit(1);
+    }
+    else
+    {   //extract 'base media decode time'
+        uint8_t   version_buf[4];
+        uint8_t   tfdt_buf[8];
+
+        loc += 4;
+        memcpy(version_buf, &ctx->audio_seg_contents[loc], 4);
+        loc += 4;
+        memcpy(tfdt_buf, &ctx->audio_seg_contents[loc], 8);
+
+        ctx->version = ((uint32_t)(version_buf[3]) << 24) |
+            ((uint32_t)(version_buf[2]) << 16) |
+            ((uint32_t)(version_buf[1]) <<  8) |
+            ((uint32_t)(version_buf[0])      );
+
+        ctx->tfdt = ((uint64_t)(tfdt_buf[0]) << 56) |
+            ((uint64_t)(tfdt_buf[1]) << 48) |
+            ((uint64_t)(tfdt_buf[2]) << 40) |
+            ((uint64_t)(tfdt_buf[3]) << 32) |
+            ((uint64_t)(tfdt_buf[4]) << 24) |
+            ((uint64_t)(tfdt_buf[5]) << 16) |
+            ((uint64_t)(tfdt_buf[6]) <<  8) |
+            ((uint64_t)(tfdt_buf[7]) );
+    }
+}
 
 void process_audio(ngx_http_request_t* r) {
     context_t ctx;
@@ -79,6 +154,14 @@ void process_audio(ngx_http_request_t* r) {
 	ctx.audio_seg_sz = r->request_body->temp_file->file.offset;
 
     get_timescale(r, &ctx);
+    get_tfdt(r, &ctx);
+
+    printf("audio seg: %s\n", ctx.audio_seg_name);
+    printf("audseg sz: %lu\n", ctx.audio_seg_sz);
+    printf("timescale: %u\n", ctx.timescale);
+    printf(" pub time: %s\n", ctx.pubtime);
+    printf("     tfdt: %lu\n", ctx.tfdt);
+    printf("  version: %u\n", ctx.version);
 
 #if 0
     /*
