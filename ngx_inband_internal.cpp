@@ -212,7 +212,7 @@ void write_emsg(ngx_http_request_t* r, FILE* fp, context_t* ctx) {
               2 +              //len of "value" field
               pubtime_sz + 1 + //+1 for '\0'
               ctx->mpdsz;
-    printf(" emsg sz : %u\n\n", emsg_sz);
+    //printf("  emsg sz: %u\n\n", emsg_sz);
 
     //+8 because 'emsg_sz_buf' and 'emsg' are not included in emsg_sz
     uint8_t* seg_buf = (uint8_t*)calloc(emsg_sz + 8, 1);
@@ -240,7 +240,7 @@ void write_emsg(ngx_http_request_t* r, FILE* fp, context_t* ctx) {
     memcpy(&seg_buf[57], &value, 2);
     memcpy(&seg_buf[59], ctx->pubtime, pubtime_sz+1);
 
-    //read in the mpd to seg_buf[59+pubtime_sz+1]
+    //read in the cur mpd to seg_buf[59+pubtime_sz+1]
     FILE *fmpd = fopen(CURMPD, "rb");
     num = fread(&seg_buf[59+pubtime_sz+1], 1, ctx->mpdsz, fmpd);
     if (num < ctx->mpdsz)
@@ -259,6 +259,20 @@ void write_emsg(ngx_http_request_t* r, FILE* fp, context_t* ctx) {
     seg_buf = NULL;
 }
 
+void concat_audio_seg(ngx_http_request_t* r, FILE* fp, context_t* ctx) {
+    if (ctx->audio_seg_contents == NULL)
+    {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                      "_INBAND_ concat_audio_seg: no seg contents, exiting \n");
+        exit(1);
+    }
+    fwrite(ctx->audio_seg_contents, ctx->audio_seg_sz, 1, fp);
+    fflush(fp);
+    free(ctx->audio_seg_contents);
+    ctx->audio_seg_contents = NULL;
+}
+
+
 void process_audio(ngx_http_request_t* r) {
     context_t ctx;
 
@@ -269,12 +283,14 @@ void process_audio(ngx_http_request_t* r) {
     get_timescale(r, &ctx);
     get_tfdt(r, &ctx);
 
+    /*
     printf("audio seg: %s\n", ctx.audio_seg_name);
     printf("audseg sz: %lu\n", ctx.audio_seg_sz);
     printf("timescale: %u\n", ctx.timescale);
     printf(" pub time: %s\n", ctx.pubtime);
     printf("     tfdt: %lu\n", ctx.tfdt);
     printf("  version: %u\n", ctx.version);
+    */
 
     FILE* fp;
     fp = fopen(ctx.audio_seg_name, "wb");
@@ -284,54 +300,10 @@ void process_audio(ngx_http_request_t* r) {
                       "_INBAND_ could not open audio seg file \"%s\" for writing\n", ctx.audio_seg_name);
         return;
     }
-
     write_styp(fp);
     write_emsg(r, fp, &ctx);
-    //concat_audio_seg(fp, ctx);
+    concat_audio_seg(r, fp, &ctx);
     fclose(fp);
-
-
-#if 0
-    /*
-    FILE* mpd_fp;
-    mpd_fp = fopen(CURMPD, "rb");
-    if (mpd_fp == NULL)
-    {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "_INBAND_ could not open mpd file \"%s\" for reading\n", CURMPD);
-        return;
-    }
-    fclose(mpd_fp);
-    */
-
-
-    /* create the out_buf, and write 'styp' to the first 4 bytes of out_buf */
-    uint8_t styp[4] = {'s', 't', 'y', 'p'};
-    size_t  num;
-    uint8_t* out_buf = (uint8_t*)calloc(sz + 4, 1);
-    memcpy(out_buf, styp, 4);
-
-    /* read in the temp file to out_buf starting at fifth byte */
-    FILE *read_fp = fopen(incoming, "rb");
-    num = fread(&out_buf[4], 1, sz, read_fp);
-    if (num < sz)
-    {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "_INBAND_ process_audio num < sz");
-        exit(1);
-    }
-    fclose(read_fp);
-
-    /* write it out */
-    FILE *write_fp = fopen(incoming, "wb");
-    num = fwrite(out_buf, 1, sz + 4, write_fp);
-    if (num < sz + 4)
-    {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, "_INBAND_ process_audio write_fp not enough");
-        exit(1);
-    }
-    fclose(write_fp);
-    free(out_buf);
-#endif
 }
 
 void process_mpd(ngx_http_request_t* r) {
