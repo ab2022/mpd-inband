@@ -5,7 +5,7 @@ CFLAGS = -DSEGBUILD -Wall -W -g
 SRCS = ngx_inband_internal.cpp inband_main.cpp
 HDRS = inband_main.h
 
-%.o: %.c
+%.o: %.cpp
 	$(CC) $(CFLAGS) -o $@ -c $<
 
 all: segbuilder

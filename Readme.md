@@ -11,9 +11,9 @@ MPD Inband compiles with g++ 13.3.0 on Ubuntu 24.04 with NGINX 1.24.0. No other 
 
 The build process is the same as compiling [morpheus](https://www.github.com/ab2022/morpheus)
 
-### Seg_builder
+### segbuilder
 
-Seg_builder is a standalone tool that can be run to test and verify the concatenation processing. It can be compiled with `make`.
+segbuilder is a standalone tool that can be run to test and verify the concatenation processing. It can be compiled with `make`.
 
 ### Format
 
@@ -53,6 +53,7 @@ Audio segments are written in the following format:
 |   h         :        e       v    |
 |   e         n        t       :    |
 |   2         0        1       2    |
++        +--------+--------+--------+
 |  \0    |      value      | msg    | #<--value = {'3', '\0'}
 +--------+--------+--------+--------+
 |         message_data con't        | #<--bytes of xml equal to

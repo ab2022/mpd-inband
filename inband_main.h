@@ -1,4 +1,4 @@
-/* seg_builder: a standalone driver for the mpd-inband NGINX module */
+/* segbuilder: a standalone driver for the mpd-inband NGINX module */
 /* copyright (C) Comcast 2025 */
 /* author: ab */
 
