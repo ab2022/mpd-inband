@@ -202,7 +202,7 @@ void write_emsg(ngx_http_request_t* r, FILE* fp, context_t* ctx) {
     uint8_t  tfdt_buf[8];
     uint8_t  event_dur[4] = {0xFF, 0xFF, 0xFF, 0xFF};
     uint32_t id = 0xDEADBEEF;
-    uint16_t value = 0x3300;
+    uint8_t  value[2] = {'3', '\0'};
     size_t   num;
 
     const char* scheme_id_uri = (const char*)"urn:mpeg:dash:event:2012";
