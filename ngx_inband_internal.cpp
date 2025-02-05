@@ -9,6 +9,7 @@
 extern "C" {
 #endif
 
+
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include <ngx_http.h>
@@ -174,7 +175,7 @@ void write_styp(FILE* fp) {
     uint8_t  mp41[4] = {'m', 'p', '4', '1'};
 
     uint8_t  seg_buf[20];
-    uint32_t styp_sz = 12; //4*3
+    uint32_t styp_sz = 20; //8 for sz & header tag + 4*3
 
     int2buf32(styp_sz, styp_sz_buf);
 
@@ -207,15 +208,15 @@ void write_emsg(ngx_http_request_t* r, FILE* fp, context_t* ctx) {
 
     pubtime_sz = strlen(ctx->pubtime);
     siu_sz = strlen(scheme_id_uri);
-    emsg_sz = 24 +             //len of constant fields
-              siu_sz + 1 +     //+1 for '\0'
-              2 +              //len of "value" field
-              pubtime_sz + 1 + //+1 for '\0'
+    emsg_sz = 8 +             //emsg_sz & 'emsg'
+              24 +            //len of constant fields
+              siu_sz + 1 +    //+1 for '\0'
+              2 +             //len of "value" field
+              pubtime_sz + 1 +//+1 for '\0'
               ctx->mpdsz;
     //printf("  emsg sz: %u\n\n", emsg_sz);
 
-    //+8 because 'emsg_sz_buf' and 'emsg' are not included in emsg_sz
-    uint8_t* seg_buf = (uint8_t*)calloc(emsg_sz + 8, 1);
+    uint8_t* seg_buf = (uint8_t*)calloc(emsg_sz, 1);
     if (seg_buf == NULL)
     {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
@@ -253,7 +254,7 @@ void write_emsg(ngx_http_request_t* r, FILE* fp, context_t* ctx) {
     fclose(fmpd);
 
     //write to file
-    fwrite(seg_buf, emsg_sz + 8, 1, fp);
+    fwrite(seg_buf, emsg_sz, 1, fp);
     fflush(fp);
     free(seg_buf);
     seg_buf = NULL;
