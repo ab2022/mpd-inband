@@ -9,10 +9,13 @@
 extern "C" {
 #endif
 
-
+#ifndef SEGBUILD
 #include <ngx_config.h>
 #include <ngx_core.h>
 #include <ngx_http.h>
+#else
+#include "inband_main.h"
+#endif
 
 #define CURMPD (const char*)"/dev/shm/cur.mpd"
 #define SCANBUF 256
@@ -85,7 +88,7 @@ void get_tfdt(ngx_http_request_t* r, context_t* ctx) {
     if (fp == NULL)
     {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "_INBAND_ could not open audio seg file \"%s\"\n");
+                      "_INBAND_ could not open audio seg file \"%s\"\n", ctx->audio_seg_name);
         return;
     }
 
@@ -101,8 +104,7 @@ void get_tfdt(ngx_http_request_t* r, context_t* ctx) {
     if (num < ctx->audio_seg_sz)
     {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "_INBAND_ num less than file sz num: %d sz: %d\n",
-                      num, ctx->audio_seg_sz);
+                      "_INBAND_ num less than file sz num: %lu sz: %lu\n", num, ctx->audio_seg_sz);
         return;
     }
 
@@ -248,7 +250,7 @@ void write_emsg(ngx_http_request_t* r, FILE* fp, context_t* ctx) {
     if (num < ctx->mpdsz)
     {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "_INBAND_ write_emsg num less than mpdsz. num: %d mpdsz: %d\n",
+                      "_INBAND_ write_emsg num less than mpdsz. num: %lu mpdsz: %ld\n",
                       num, ctx->mpdsz);
         return;
     }
