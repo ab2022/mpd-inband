@@ -172,7 +172,8 @@ void write_styp(FILE* fp) {
     uint8_t  styp_sz_buf[4];
     uint32_t zero = 0x00;
     uint8_t  styp[4] = {'s', 't', 'y', 'p'};
-    uint8_t  mp41[4] = {'m', 'p', '4', '1'};
+    uint8_t  iso9[4] = {'i', 's', 'o', '9'};
+    uint8_t  dash[4] = {'d', 'a', 's', 'h'};
 
     uint8_t  seg_buf[20];
     uint32_t styp_sz = 20; //8 for sz & header tag + 4*3
@@ -181,9 +182,9 @@ void write_styp(FILE* fp) {
 
     memcpy(seg_buf, styp_sz_buf, 4);
     memcpy(&seg_buf[4], styp, 4);
-    memcpy(&seg_buf[8], mp41, 4);
+    memcpy(&seg_buf[8], iso9, 4);
     memcpy(&seg_buf[12], &zero, 4);
-    memcpy(&seg_buf[16], mp41, 4);
+    memcpy(&seg_buf[16], dash, 4);
 
     fwrite(seg_buf, 1, 20, fp);
     fflush(fp);
@@ -317,6 +318,11 @@ void process_mpd(ngx_http_request_t* r) {
                       "_INBAND_ could not open incoming mpd file \"%s\"\n", incoming);
         return;
     }
+
+    pugi::xml_node mpd = doc.child("MPD");
+    //add minimumUpdatePeriod="PT0S"
+    pugi::xml_attribute mup = mpd.append_attribute("minimumUpdatePeriod");
+    mup.set_value("PT0S");
 
     pugi::xpath_query query_scan_type("/MPD/Period/AdaptationSet");
     pugi::xpath_node_set scan_items = query_scan_type.evaluate_node_set(doc);
