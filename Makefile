@@ -10,9 +10,9 @@ HDRS = inband_main.h
 
 all: segbuilder
 
-segbuilder: $(OBJS) $(HDRS)
+segbuilder: $(SRCS) $(HDRS)
 	$(CC) $(CFLAGS) $(SRCS) -o $@ -I.
 
 clean:
-	rm -f *.o segbuilder
+	rm -f *.o segbuilder core
 

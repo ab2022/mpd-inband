@@ -3,39 +3,65 @@
 /* author: ab */
 
 #include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <getopt.h>
+#include <sys/stat.h>
 #include "inband_main.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int main (void) {
-    ngx_http_request_t      r;
+int main (int argc, char* argv[]) {
+    int   c;
+    int   sz;
+    u_char* f = NULL;
+
+    ngx_http_request_t r;
     ngx_http_request_body_t rb;
-
     r.request_body = &rb;
+    ngx_temp_file_t tf;
+    r.request_body->temp_file = &tf;
 
-    //FIXME change to cmd line input and use fseek to get the offset
-    u_char* mpdfile = (u_char*)"sample_manifest.mpd";
-    u_char* path_str = mpdfile;
-    r.request_body->temp_file->file.name.data = path_str;
-	r.request_body->temp_file->file.offset = 2704;
+    while ((c = getopt(argc, argv, "a:h")) != -1)
+    {
+        switch (c)
+        {
+        case 'a':
+            f = (u_char*)strdup(optarg);
+            break;
+        case 'h':
+            printf("welcome to %s\n", argv[0]);
+            return EXIT_SUCCESS;
+        }
+    }
 
-    /*
-    u_char* audiofile = (u_char*)"audio-0-128000-904577953.mp4a";
-    u_char* path_str = audiofile;
-    r.request_body->temp_file->file.name.data = path_str;
-	r.request_body->temp_file->file.offset = 31715;
-    */
+    if (f == NULL)
+    {
+        printf("No input file, exiting\n");
+        exit(1);
+    }
 
-    printf("   file: %s\n", r.request_body->temp_file->file.name.data);
-    printf("file sz: %ld\n", r.request_body->temp_file->file.offset);
+    struct stat st;
+    stat((const char*)f, &st);
+    sz = st.st_size;
 
-    inband_process(&r, path_str); //NOTE: rewrites .mpd or .mp4a in place
-                                  //for mpd, it can be checked back out
-                                  //for audio seg, copy a new one to this dir
+    ngx_file_t nfile;
+    nfile.name.data = f;
+    nfile.offset = sz;
+    r.request_body->temp_file->file = nfile;
+
+    printf("processing:\n");
+    printf("      file: %s\n", r.request_body->temp_file->file.name.data);
+    printf("   file sz: %ld\n", r.request_body->temp_file->file.offset);
+
+    inband_process(&r, f); //NOTE: rewrites .mpd or .mp4a in place
+                           //for mpd, it can be checked back out
+                           //for audio seg, copy a new one to this dir
 
     //NOTE 2: 'cur.mpd' is written to '/dev/shm/'
+    free(f);
     return EXIT_SUCCESS;
 }
 
