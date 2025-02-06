@@ -11,6 +11,15 @@ MPD Inband compiles with g++ 13.3.0 on Ubuntu 24.04 with NGINX 1.24.0. No other 
 
 The build process is the same as compiling [morpheus](https://www.github.com/ab2022/morpheus)
 
+MPD inband adds this attribute to the 'MPD' xml element
+```
+minimumUpdatePeriod="PT0S"
+```
+and it adds this element as a child to the audio 'AdaptationSet'
+```
+<InbandEventStream schemeIdUri="urn:mpeg:dash:event:2012" value="3" />
+```
+
 ### segbuilder
 
 segbuilder is a standalone tool that can be run to test and verify the concatenation processing. It can be compiled with `make`.

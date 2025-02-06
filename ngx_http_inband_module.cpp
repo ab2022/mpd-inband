@@ -1,7 +1,6 @@
-
-/*
- * Copyright (C) ab
- */
+/* copyright (C) Comcast 2025 */
+/* author: ab */
+/* 1/29/2025 */
 
 #include <iostream>
 #include <sstream>

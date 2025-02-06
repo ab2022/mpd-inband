@@ -1,6 +1,6 @@
-/*
-* Copyright (C) ab 1/29/25
-*/
+/* copyright (C) Comcast 2025 */
+/* author: ab */
+/* 1/29/2025 */
 
 #include <filesystem>
 #include "pugixml.hpp"
@@ -217,7 +217,6 @@ void write_emsg(ngx_http_request_t* r, FILE* fp, context_t* ctx) {
               2 +             //len of "value" field
               pubtime_sz + 1 +//+1 for '\0'
               ctx->mpdsz;
-    //printf("  emsg sz: %u\n\n", emsg_sz);
 
     uint8_t* seg_buf = (uint8_t*)calloc(emsg_sz, 1);
     if (seg_buf == NULL)
@@ -282,19 +281,10 @@ void process_audio(ngx_http_request_t* r) {
 
     /* get the audio seg temp file name and size */
     ctx.audio_seg_name = (const char*)r->request_body->temp_file->file.name.data;
-	ctx.audio_seg_sz = r->request_body->temp_file->file.offset;
+    ctx.audio_seg_sz = r->request_body->temp_file->file.offset;
 
     get_timescale(r, &ctx);
     get_tfdt(r, &ctx);
-
-    /*
-    printf("audio seg: %s\n", ctx.audio_seg_name);
-    printf("audseg sz: %lu\n", ctx.audio_seg_sz);
-    printf("timescale: %u\n", ctx.timescale);
-    printf(" pub time: %s\n", ctx.pubtime);
-    printf("     tfdt: %lu\n", ctx.tfdt);
-    printf("  version: %u\n", ctx.version);
-    */
 
     FILE* fp;
     fp = fopen(ctx.audio_seg_name, "wb");
