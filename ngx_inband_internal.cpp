@@ -17,7 +17,7 @@ extern "C" {
 #include "inband_main.h"
 #endif
 
-#define CURMPD (const char*)"/dev/shm/cur.mpd"
+#define CURMPD (const char*)"cur.mpd"
 #define SCANBUF 256
 
 
