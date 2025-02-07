@@ -304,10 +304,13 @@ void process_mpd(ngx_http_request_t* r) {
 
     const char* incoming = (const char*)r->request_body->temp_file->file.name.data;
     pugi::xml_document doc;
-    if (!doc.load_file(incoming))
+
+    pugi::xml_parse_result result = doc.load_file(incoming);
+    if (result.status != pugi::status_ok)
     {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "_INBAND_ could not open incoming mpd file \"%s\"\n", incoming);
+                      "_INBAND_ could not open incoming mpd file \"%s\": %s\n",
+                      incoming, result.description());
         return;
     }
 
