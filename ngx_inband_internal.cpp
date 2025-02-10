@@ -315,7 +315,9 @@ void process_mpd(ngx_http_request_t* r) {
     }
 
     pugi::xml_node mpd = doc.child("MPD");
+
     //add minimumUpdatePeriod="PT0S"
+    mpd.remove_attribute("minimumUpdatePeriod");
     pugi::xml_attribute mup = mpd.append_attribute("minimumUpdatePeriod");
     mup.set_value("PT0S");
 
@@ -327,6 +329,8 @@ void process_mpd(ngx_http_request_t* r) {
         std::string val = node.node().attribute("contentType").value();
         if (val == "audio")
         {
+            //add InbandEventStream
+            node.node().remove_child("InbandEventStream");
             pugi::xml_node ies = node.node().append_child("InbandEventStream");
 
             pugi::xml_attribute siu = ies.append_attribute("schemeIdUri");
