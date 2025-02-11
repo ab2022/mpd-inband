@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <getopt.h>
+#include <unistd.h>
 #include <sys/stat.h>
 #include "inband_main.h"
 
@@ -14,10 +15,21 @@
 extern "C" {
 #endif
 
-int main (int argc, char* argv[]) {
-    int   c;
+ngx_file_t create_ngx_file(u_char* fname) {
     int   sz;
-    u_char* f = NULL;
+    ngx_file_t nfile;
+    struct stat st;
+
+    stat((const char*)fname, &st);
+    sz = st.st_size;
+
+    nfile.name.data = fname;
+    nfile.offset = sz;
+
+    return nfile;
+}
+
+void run_it(u_char* f) {
 
     ngx_http_request_t r;
     ngx_http_request_body_t rb;
@@ -25,44 +37,60 @@ int main (int argc, char* argv[]) {
     ngx_temp_file_t tf;
     r.request_body->temp_file = &tf;
 
-    while ((c = getopt(argc, argv, "a:h")) != -1)
+    if (!(access((const char*)f, F_OK) == 0))
+    {
+        printf("Could not open \"%s\" Exiting :(\n", f);
+        exit(1);
+    }
+
+    r.request_body->temp_file->file = create_ngx_file(f);
+    printf("processing:\n");
+    printf("      file: %s\n", r.request_body->temp_file->file.name.data);
+    printf("   file sz: %ld\n", r.request_body->temp_file->file.offset);
+    inband_process(&r, f);
+    free(f);
+}
+
+int main (int argc, char* argv[]) {
+    int   c;
+    u_char* aud_f = NULL;
+    u_char* mpd_f = NULL;
+
+    while ((c = getopt(argc, argv, "a:m:h")) != -1)
     {
         switch (c)
         {
         case 'a':
-            f = (u_char*)strdup(optarg);
+            aud_f = (u_char*)strdup(optarg);
+            break;
+        case 'm':
+            mpd_f = (u_char*)strdup(optarg);
             break;
         case 'h':
             printf("welcome to %s\n", argv[0]);
+            printf("usage: \n");
+            printf("  -m mpd   (if not given, \"cur.mpd\" will be used)\n");
+            printf("  -a seg   (audio seg: optional)\n");
             return EXIT_SUCCESS;
         }
     }
 
-    if (f == NULL)
+    if (mpd_f == NULL)
     {
-        printf("No input file, exiting\n");
-        exit(1);
+        const char* curmpd = "cur.mpd";
+        if (!(access(curmpd, F_OK) == 0))
+        {
+            //curmpd mpd does not exist. we must exit
+            printf("No mpd file given and no curmpd found. Exiting :(\n");
+            exit(1);
+        }
     }
+    else //mpd was given or curmpd exists
+        run_it(mpd_f);
 
-    struct stat st;
-    stat((const char*)f, &st);
-    sz = st.st_size;
+    if (aud_f != NULL) //audio seg was given
+        run_it(aud_f);
 
-    ngx_file_t nfile;
-    nfile.name.data = f;
-    nfile.offset = sz;
-    r.request_body->temp_file->file = nfile;
-
-    printf("processing:\n");
-    printf("      file: %s\n", r.request_body->temp_file->file.name.data);
-    printf("   file sz: %ld\n", r.request_body->temp_file->file.offset);
-
-    inband_process(&r, f); //NOTE: rewrites .mpd or .mp4a in place
-                           //for mpd, it can be checked back out
-                           //for audio seg, copy a new one to this dir
-
-    //NOTE 2: 'cur.mpd' is written to '/dev/shm/'
-    free(f);
     return EXIT_SUCCESS;
 }
 

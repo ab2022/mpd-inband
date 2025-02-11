@@ -123,7 +123,7 @@ void get_tfdt(ngx_http_request_t* r, context_t* ctx) {
     if (loc < 0)
     {
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "_INBAND_ did not find tfdf, exiting\n");
+                      "_INBAND_ did not find tfdt, exiting\n");
         exit(1);
     }
     else
